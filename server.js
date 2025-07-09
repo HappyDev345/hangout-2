@@ -8,6 +8,9 @@ app.use(express.json());
 // Simple in-memory store for availability
 let dataStore = {};
 
+// Change this password to something strong and keep it secret!
+const ADMIN_PASSWORD = 'supersecret123';
+
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/index.html');
 });
@@ -27,8 +30,12 @@ app.get('/get', (req, res) => {
 });
 
 app.post('/reset', (req, res) => {
+  const { password } = req.body;
+  if (password !== ADMIN_PASSWORD) {
+    return res.status(401).json({ error: 'Unauthorized: Wrong password' });
+  }
   dataStore = {};
-  console.log("🔁 All availability cleared.");
+  console.log("🔁 All availability cleared by admin.");
   res.json({ message: 'All responses reset.' });
 });
 
