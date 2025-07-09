@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Group Scheduler</title>
+  <style>
+    body { font-family: sans-serif; max-width: 900px; margin: 20px auto; padding: 20px; }
+    table, td, th {
+      border: 1px solid #ccc;
+      border-collapse: collapse;
+      padding: 5px;
+      text-align: center;
+      font-size: 14px;
+    }
+    table {
+      width: 100%;
+      margin-bottom: 20px;
+    }
+    input[type="checkbox"] {
+      transform: scale(1.2);
+      cursor: pointer;
+    }
+    #results {
+      font-family: Arial, sans-serif;
+      background: #f9f9f9;
+      padding: 10px;
+      border-radius: 5px;
+      max-height: 300px;
+      overflow-y: auto;
+      margin-top: 10px;
+    }
+    .highlight {
+      background-color: #d4edda;
+      font-weight: bold;
+    }
+    button {
+      padding: 6px 12px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #resetBtn {
+      margin-left: 10px;
+      background: #e74c3c;
+      color: white;
+      border: none;
+    }
+  </style>
+</head>
+<body>
+  <h2>🗓️ When Are You Free? (July 7 - July 20, 2025)</h2>
+  <input id="name" placeholder="Your name" /><br><br>
+
+  <table id="timetable">
+    <thead>
+      <tr>
+        <th>Time</th>
+        <th>Mon 7 Jul</th>
+        <th>Tue 8 Jul</th>
+        <th>Wed 9 Jul</th>
+        <th>Thu 10 Jul</th>
+        <th>Fri 11 Jul</th>
+        <th>Sat 12 Jul</th>
+        <th>Sun 13 Jul</th>
+        <th>Mon 14 Jul</th>
+        <th>Tue 15 Jul</th>
+        <th>Wed 16 Jul</th>
+        <th>Thu 17 Jul</th>
+        <th>Fri 18 Jul</th>
+        <th>Sat 19 Jul</th>
+        <th>Sun 20 Jul</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- JS will generate rows here -->
+    </tbody>
+  </table>
+
+  <button onclick="submit()">Submit</button>
+  <button id="resetBtn" onclick="resetResponses()">Reset All</button>
+
+  <h3>📊 Group Availability</h3>
+  <div id="results">Loading...</div>
+
+  <script>
+    // Dates and labels for July 7-20, 2025
+    const dates = [
+      "2025-07-07", "2025-07-08", "2025-07-09", "2025-07-10", "2025-07-11",
+      "2025-07-12", "2025-07-13", "2025-07-14", "2025-07-15", "2025-07-16",
+      "2025-07-17", "2025-07-18", "2025-07-19", "2025-07-20"
+    ];
+
+    const dateLabels = [
+      "Mon 7 Jul", "Tue 8 Jul", "Wed 9 Jul", "Thu 10 Jul", "Fri 11 Jul",
+      "Sat 12 Jul", "Sun 13 Jul", "Mon 14 Jul", "Tue 15 Jul", "Wed 16 Jul",
+      "Thu 17 Jul", "Fri 18 Jul", "Sat 19 Jul", "Sun 20 Jul"
+    ];
+
+    // Generate timetable rows (9am to 6pm)
+    const tbody = document.querySelector("#timetable tbody");
+    const startHour = 9;
+    const endHour = 17; // 5pm block ends at 6pm
+
+    function formatHour(hour) {
+      if (hour === 12) return "12pm";
+      if (hour > 12) return (hour - 12) + "pm";
+      return hour + "am";
+    }
+
+    for (let hour = startHour; hour <= endHour; hour++) {
+      const row = document.createElement("tr");
+
+      const timeCell = document.createElement("td");
+      const nextHour = hour + 1;
+      timeCell.textContent = `${formatHour(hour)} - ${formatHour(nextHour)}`;
+      row.appendChild(timeCell);
+
+      for (const date of dates) {
+        const cell = document.createElement("td");
+        const input = document.createElement("input");
+        input.type = "checkbox";
+        input.className = "slot";
+        input.value = `${date}-${hour}`;
+        cell.appendChild(input);
+        row.appendChild(cell);
+      }
+
+      tbody.appendChild(row);
+    }
+
+    // Turn slot into friendly text like "Wed 9 Jul, 10am - 11am"
+    function slotToFriendlyText(slot) {
+      const parts = slot.split("-");
+      if(parts.length !== 4) return slot;
+
+      const dateStr = parts.slice(0,3).join("-");
+      const hour = parseInt(parts[3]);
+
+      const dateIndex = dates.indexOf(dateStr);
+      if(dateIndex === -1) return slot;
+
+      const dayLabel = dateLabels[dateIndex];
+      const nextHour = hour + 1;
+
+      function formatHourLocal(h) {
+        if (h === 12) return "12pm";
+        if (h > 12) return (h - 12) + "pm";
+        return h + "am";
+      }
+
+      return `${dayLabel}, ${formatHourLocal(hour)} - ${formatHourLocal(nextHour)}`;
+    }
+
+    async function getAvailability() {
+      const res = await fetch('/get');
+      const data = await res.json();
+      const counts = {};
+
+      for (const user in data) {
+        data[user].forEach(slot => {
+          counts[slot] = (counts[slot] || 0) + 1;
+        });
+      }
+
+      let maxCount = 0;
+      for (const slot in counts) {
+        if (counts[slot] > maxCount) maxCount = counts[slot];
+      }
+
+      if(maxCount === 0) {
+        document.getElementById('results').textContent = "No submissions yet.";
+        return;
+      }
+
+      let html = `<table style="border-collapse: collapse; width: 100%;">
+        <tr><th style="border: 1px solid #ccc; padding: 5px;">Time Slot</th><th style="border: 1px solid #ccc; padding: 5px;">People Free</th></tr>`;
+
+      for(const slot in counts) {
+        const friendly = slotToFriendlyText(slot);
+        const highlightClass = counts[slot] === maxCount ? "highlight" : "";
+        html += `<tr class="${highlightClass}"><td style="border: 1px solid #ccc; padding: 5px;">${friendly}</td><td style="border: 1px solid #ccc; padding: 5px; text-align: center;">${counts[slot]}</td></tr>`;
+      }
+
+      html += `</table>`;
+
+      const bestSlots = Object.keys(counts).filter(s => counts[s] === maxCount)
+                                           .map(slotToFriendlyText);
+
+      html += `<p><strong>Best time(s) for everyone:</strong><br>${bestSlots.join("<br>")}</p>`;
+
+      document.getElementById('results').innerHTML = html;
+    }
+
+    async function submit() {
+      const name = document.getElementById('name').value.trim();
+      if (!name) {
+        alert("Please enter your name!");
+        return;
+      }
+
+      const selectedSlots = Array.from(document.querySelectorAll('.slot:checked'))
+                                .map(cb => cb.value);
+
+      if (selectedSlots.length === 0) {
+        alert("Please select at least one time slot!");
+        return;
+      }
+
+      await fetch('/submit', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({ name, slots: selectedSlots })
+      });
+
+      getAvailability();
+    }
+
+    async function resetResponses() {
+      if (!confirm('Are you sure you want to reset ALL responses?')) return;
+
+      await fetch('/reset', { method: 'POST' });
+
+      alert('All responses have been reset.');
+
+      getAvailability();
+    }
+
+    getAvailability();
+  </script>
+</body>
+</html>
